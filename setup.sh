@@ -1,22 +1,47 @@
 #!/bin/bash
 
+# Function to handle errors
+handle_error() {
+  echo "======================================"
+  echo "ERROR: $1"
+  echo "======================================"
+  echo ""
+  echo "Troubleshooting suggestions:"
+  echo "1. For Python dependency issues:"
+  echo "   - Make sure you have Python 3.8+ installed: python3 --version"
+  echo "   - Try installing setuptools manually: pip install setuptools wheel"
+  echo "2. For cx_Oracle issues:"
+  echo "   - You need Oracle Instant Client libraries installed"
+  echo "   - Run: sudo ./install_oracle_client.sh"
+  echo "3. For npm/frontend issues:"
+  echo "   - Make sure Node.js is installed: node --version"
+  echo "   - Try installing npm dependencies manually: cd frontend && npm install"
+  echo ""
+  exit 1
+}
+
 echo "Vietnam National Hospital Dashboard Setup"
 echo "========================================="
 
 # Create Python virtual environment
 echo "Setting up Python virtual environment..."
-cd backend
-python3 -m venv venv
-source venv/bin/activate
+cd backend || handle_error "Could not find backend directory"
+python3 -m venv venv || handle_error "Failed to create virtual environment. Make sure python3-venv is installed."
+source venv/bin/activate || handle_error "Failed to activate virtual environment"
+
+# Update pip and install setuptools first (needed for Python 3.12+)
+echo "Updating pip and installing setuptools..."
+pip install --upgrade pip || handle_error "Failed to upgrade pip"
+pip install setuptools wheel || handle_error "Failed to install setuptools"
 
 # Install Python dependencies
 echo "Installing backend dependencies..."
-pip install -r requirements.txt
+pip install -r requirements.txt || handle_error "Failed to install Python dependencies"
 
 # Create .env file if it doesn't exist
 if [ ! -f .env ]; then
     echo "Creating .env file for database configuration..."
-    cp .env.example .env
+    cp .env.example .env || handle_error "Failed to create .env file"
     
     # Prompt for database credentials
     echo "Please enter your Oracle database credentials:"
@@ -41,20 +66,27 @@ if [ ! -f .env ]; then
 fi
 
 # Return to root directory
-cd ..
+cd .. || handle_error "Failed to navigate back to root directory"
 
 # Set up frontend
 echo "Setting up frontend..."
-cd frontend
+cd frontend || handle_error "Could not find frontend directory"
 if [ -x "$(command -v npm)" ]; then
     echo "Installing frontend dependencies..."
-    npm install
+    npm install || handle_error "Failed to install frontend dependencies"
 else
     echo "WARNING: npm not found. Please install Node.js and npm."
     echo "Then run: cd frontend && npm install"
 fi
 
 # Return to root directory
+cd .. || handle_error "Failed to navigate back to root directory"
+
+# Test database connection
+echo "Testing database connection..."
+cd backend
+source venv/bin/activate
+python -c "from config.database import get_connection; conn = get_connection(); print('Database connection successful!' if conn else 'Could not connect to database'); conn.close() if conn else None" || echo "WARNING: Could not connect to the Oracle database. You may need to install Oracle Instant Client."
 cd ..
 
 echo "Setup completed!"
@@ -68,4 +100,7 @@ echo "To start the frontend development server:"
 echo "  cd frontend"
 echo "  npm start"
 echo ""
-echo "Access the application at http://localhost:3000" 
+echo "Access the application at http://localhost:3000"
+echo ""
+echo "NOTE: If you encounter issues with cx_Oracle, run:"
+echo "  sudo ./install_oracle_client.sh" 
